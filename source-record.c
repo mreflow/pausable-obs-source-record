@@ -53,6 +53,7 @@ struct source_record_filter_context {
 	bool remove_after_record;
 	long long record_max_seconds;
 	int last_frontend_event;
+	bool main_recording_paused;
 };
 
 DARRAY(obs_source_t *) source_record_filters;
@@ -255,6 +256,11 @@ static void start_file_output_task(void *data)
 			context->output_active = true;
 			obs_source_inc_showing(obs_filter_get_parent(context->source));
 		}
+	}
+	if (context->fileOutput && obs_output_active(context->fileOutput)) {
+		const bool should_pause = context->main_recording_paused;
+		if (obs_output_paused(context->fileOutput) != should_pause)
+			obs_output_pause(context->fileOutput, should_pause);
 	}
 	context->starting_file_output = false;
 }
@@ -854,14 +860,10 @@ static void source_record_filter_update(void *data, obs_data_t *settings)
 		filter->record = record;
 	}
 
-	if (record && filter->fileOutput && filter->last_frontend_event == OBS_FRONTEND_EVENT_RECORDING_PAUSED &&
-	    !obs_output_paused(filter->fileOutput)) {
-		obs_output_pause(filter->fileOutput, true);
-		filter->last_frontend_event = -1;
-	} else if (record && filter->fileOutput && filter->last_frontend_event == OBS_FRONTEND_EVENT_RECORDING_UNPAUSED &&
-		   obs_output_paused(filter->fileOutput)) {
-		obs_output_pause(filter->fileOutput, false);
-		filter->last_frontend_event = -1;
+	if (record && filter->fileOutput && obs_output_active(filter->fileOutput)) {
+		const bool should_pause = filter->main_recording_paused;
+		if (obs_output_paused(filter->fileOutput) != should_pause)
+			obs_output_pause(filter->fileOutput, should_pause);
 	}
 
 	if (replay_buffer != filter->replayBuffer) {
@@ -1054,6 +1056,13 @@ static void update_task(void *param)
 static void frontend_event(enum obs_frontend_event event, void *data)
 {
 	struct source_record_filter_context *context = data;
+	if (event == OBS_FRONTEND_EVENT_RECORDING_PAUSED) {
+		context->main_recording_paused = true;
+	} else if (event == OBS_FRONTEND_EVENT_RECORDING_UNPAUSED ||
+		   event == OBS_FRONTEND_EVENT_RECORDING_STOPPING ||
+		   event == OBS_FRONTEND_EVENT_RECORDING_STOPPED) {
+		context->main_recording_paused = false;
+	}
 	if (event == OBS_FRONTEND_EVENT_STREAMING_STARTING || event == OBS_FRONTEND_EVENT_STREAMING_STARTED ||
 	    event == OBS_FRONTEND_EVENT_STREAMING_STOPPING || event == OBS_FRONTEND_EVENT_STREAMING_STOPPED ||
 	    event == OBS_FRONTEND_EVENT_RECORDING_STARTING || event == OBS_FRONTEND_EVENT_RECORDING_STARTED ||
@@ -1080,6 +1089,7 @@ static void *source_record_filter_create(obs_data_t *settings, obs_source_t *sou
 
 	da_push_back(source_record_filters, &source);
 	context->last_frontend_event = -1;
+	context->main_recording_paused = obs_frontend_recording_paused();
 	context->enableHotkey = OBS_INVALID_HOTKEY_PAIR_ID;
 	context->pauseHotkeys = OBS_INVALID_HOTKEY_PAIR_ID;
 	context->splitHotkey = OBS_INVALID_HOTKEY_ID;
