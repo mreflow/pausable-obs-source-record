@@ -1,4 +1,5 @@
 name: build obs plugin
+# trigger: metadata-only change to run workflow
 
 on:
   push:
