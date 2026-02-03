@@ -127,6 +127,35 @@ jobs:
         with:
           name: ${{ env.PLUGIN_NAME }}-macos-${{ matrix.arch }}-${{ steps.setup.outputs.commitHash }}
           path: ${{ github.workspace }}/plugin/release/${{ env.PLUGIN_NAME }}-*-macos-${{ matrix.arch }}.pkg
+  macos-zip:
+    name: macOS Zip
+    runs-on: ubuntu-latest
+    needs: [macos]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.1.1
+        with:
+          fetch-depth: 1
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4.1.2
+        with:
+          pattern: ${{ env.PLUGIN_NAME }}-macos-*
+          path: macos_pkgs
+          merge-multiple: true
+
+      - name: Create macOS zip
+        shell: bash
+        run: |
+          version=$(jq -r .version buildspec.json)
+          zip_name="${{ env.PLUGIN_NAME }}-${version}-macos.zip"
+          (cd macos_pkgs && zip -j "../${zip_name}" ./*.pkg)
+
+      - name: Upload macOS zip
+        uses: actions/upload-artifact@v4.3.1
+        with:
+          name: ${{ env.PLUGIN_NAME }}-macos-zip-${{ github.sha }}
+          path: ${{ env.PLUGIN_NAME }}-*-macos.zip
   linux-in-tree:
     name: 'Linux'
     runs-on: ${{ matrix.ubuntu }}
