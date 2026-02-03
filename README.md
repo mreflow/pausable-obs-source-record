@@ -1,7 +1,5 @@
 # Source Record filter for OBS Studio
 
- # Source Record filter for OBS Studio
-
 Plugin for OBS Studio to make sources available to record via a filter - Now with the ability to pause all recordings simultaneously.
 
 # Download
